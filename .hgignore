@@ -1,4 +1,4 @@
-build
+build/
 target
 project/target
 .*\.iml
