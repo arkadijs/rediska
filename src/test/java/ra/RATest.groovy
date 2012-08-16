@@ -10,7 +10,14 @@ class RATest extends GroovyTestCase {
     }
 
     void tearDown() {
+        ra.disconnect()
         ra = null
+    }
+
+    void testStopwords() {
+        def w = Stopwords.instance.words
+        assert w.contains('about')
+        assert w.contains('тогда')
     }
 
     def aboutDog = "Slow dog runs over lucky tock"
@@ -19,14 +26,14 @@ class RATest extends GroovyTestCase {
     void testFindInSentence() {
         ra["A"] = aboutDog
         def ids = ra[what]
-        assertEquals(["A"] as Set, ids)
+        assertEquals(["A"], ids)
     }
 
     void testRemoveContent() {
         ra["B"] = aboutDog
         ra.remove(["B"])
         def ids = ra[what]
-        assertEquals([] as Set, ids)
+        assertEquals([], ids)
     }
 
     def perf(blurb, closure) {
@@ -67,10 +74,10 @@ class RATest extends GroovyTestCase {
 
     void testMT() {
         def n = 10
-        def pool = 4
+        def nOfThreads = 4
         def data = sampleData()
         data = data.collate(data.size() / n as int)
-        groovyx.gpars.GParsPool.withPool(pool) {
+        groovyx.gpars.GParsPool.withPool(nOfThreads) {
             def test = { i ->
                 perf("task $i finished in") {
                     def ra = new RA()
@@ -80,7 +87,7 @@ class RATest extends GroovyTestCase {
                     remove(ra, spamIds)
                 }
             }
-            (1..n).collect { test.callAsync(it) } .each { it.get() }
+            (0..n).collect { test.callAsync(it) } .each { it.get() }
         }
     }
 
@@ -106,10 +113,10 @@ class RATest extends GroovyTestCase {
     }
 
     def load(ra, data, n) {
-        n.times {
+        n.times { i ->
             data.each {
                 def id = it[0]; def content = it[1]
-                ra[id] = content
+                ra[id + i] = content
             }
         }
     }
@@ -125,7 +132,7 @@ class RATest extends GroovyTestCase {
 
     def search(ra, spam, n) {
         def spamTokens = ra.tokenize(spam)[10..20].join(" ")
-        def spamIds
+        def spamIds = []
         n.times {
             spamIds = ra[spamTokens]
         }

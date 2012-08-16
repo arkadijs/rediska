@@ -1,6 +1,7 @@
 package ra
 
-//@Grab('redis.clients:jedis:2.1.0')
+import redis.clients.jedis.Jedis
+import static groovyx.gpars.GParsPool.withPool
 
 class DummyRedisPipe {
     def sadd(x, y) {}
@@ -18,27 +19,97 @@ class DummyRedis {
 }
 
 class RA {
-    def redis = new redis.clients.jedis.Jedis("localhost")
-    //def redis = new DummyRedis()
+    def host = "localhost"
+    def basePort = 6379
+    def nOfRedises = 2 // try to set to 3
+    def nOfThreads = 4
+    def stopwords = Stopwords.instance.words
+    List<Jedis> redises = []
+
+    RA() {
+        init(nOfRedises)
+    }
+
+    RA(n) {
+        init(n)
+    }
+
+    private def init(int n) {
+        n.times {
+            redises << new Jedis(host, basePort + it)
+        }
+    }
+
+    static long previousPrint = 0
+    def rateLimit(String msg) {
+        long now = System.nanoTime()
+        if (now - previousPrint > 1_000_000_000) {
+            println msg
+            previousPrint = now
+        }
+    }
+    def rateLimit(Exception e) { rateLimit(e.toString()) }
+
+    // TODO faster recovery in case 1. redis is down, 2. redis is stuck/slow
+    def allRedises(Closure closure) {
+        withPool(nOfThreads) {
+            redises.collect { closure.callAsync(it) } .collect { future ->
+                def result = []
+                try {
+                    result = future.get()
+                } catch (Exception e) {
+                    rateLimit e
+                    // TODO? redis.disconnect()
+                }
+                result
+            } .flatten()
+        }
+    }
+
+    def oneRedis(int preferred, Closure closure) {
+        def n = redises.size()
+        def ordered = n > 1 ? {
+                def rest = (preferred+1..preferred+n-1).collect { it % n }
+                Collections.shuffle(rest)
+                redises[preferred, rest]
+            }.call() : redises
+        ordered.any { redis ->
+            def done = false
+            try {
+                closure(redis)
+                done = true
+            } catch (Exception e) {
+                rateLimit e
+                redis.disconnect()
+            }
+            done
+        }
+    }
+
+    def disconnect() {
+        allRedises { redis -> redis.disconnect() }
+    }
 
     /** Resets redis storage. */
     def reset() {
-        def keys = redis.keys('*') as List
-        if (!keys.isEmpty())
-            redis.del(*keys)
+        allRedises { redis ->
+            def keys = redis.keys('*') as List
+            //println 'clearing ' + keys
+            if (!keys.isEmpty())
+                redis.del(*keys)
+        }
     }
 
     List<String> tokenize(String s) {
-        def uniq = []
         def prev = ''
         // Groovy unique() is O(N^2)
-        for (token in (s.split('\\s+') as List).grep { it.length() > 2 }.sort()) {
+        (s.split('[\\s,!]+') as List).grep { it.length() > 2 && !stopwords.contains(it) }.sort().inject([]) { uniq, token ->
             if (token != prev) {
-                uniq.add(token)
+                uniq << token
                 prev = token
             }
+            uniq
         }
-        uniq
     }
 
     def _token = "t:"
@@ -47,28 +118,54 @@ class RA {
     /** Puts content into redis index, ra[id] = content. */
     def putAt(String id, String content) {
         def tokens = tokenize(content)
+        if (!tokens)
+            return
+        def i = id.hashCode() % redises.size()
         def contentKey = _content + id
-        def pipe = redis.pipelined()
-        tokens.each { pipe.sadd(_token + it, id) }
-        tokens.each { pipe.sadd(contentKey, it) }
-        pipe.sync()
+        oneRedis(i) { redis ->
+            def pipe = redis.pipelined()
+            tokens.each { pipe.sadd(_token + it, id) }
+            tokens.each { pipe.sadd(contentKey, it) }
+            pipe.sync()
+        }
     }
 
     /** Searches for tokens in redis index, content-id-s = ra[sentence]. */
-    Set<String> getAt(String what) {
-        redis.sinter(*tokenize(what).collect { _token + it })
+    List<String> getAt(String what) {
+        def tokens = tokenize(what).collect { _token + it }
+        allRedises { redis ->
+            redis.sinter(*tokens) as List
+        }
     }
 
-    /** Removes content from redis index, ra.remove([content0, content1]) */
+    /** Removes content from redis index, ra.remove([content0, content1, ...]) */
     def remove(List<String> ids) {
-        def pipe = redis.pipelined()
-        ids.each { id ->
-            def contentKey = _content + id
-            redis.smembers(contentKey).each {
-                pipe.srem(_token + it, id)
+        allRedises { redis ->
+            ids.each { id ->
+                def pipe = redis.pipelined()
+                def contentKey = _content + id
+                redis.smembers(contentKey).each {
+                    pipe.srem(_token + it, id)
+                }
+                pipe.del(contentKey)
+                pipe.sync()
             }
-            pipe.del(contentKey)
-            pipe.sync()
         }
+    }
+}
+
+@Singleton
+class Stopwords {
+    def lang = ['en', 'et', 'lv', 'lt', 'ru']
+    def words
+
+    Stopwords() {
+        words = lang.collect {
+            getClass().getClassLoader().getResourceAsStream("stopwords/$it").withStream {
+                it.readLines("UTF-8").collect {
+                    it.replaceAll('\\s+', '')
+                }
+            } .grep { it }
+        } .flatten() as Set
     }
 }
