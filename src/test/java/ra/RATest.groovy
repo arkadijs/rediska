@@ -1,5 +1,7 @@
 package ra
 
+import static groovyx.gpars.GParsPool.withPool
+
 class RATest extends GroovyTestCase {
     Random rand = new Random()
     RA ra
@@ -36,7 +38,7 @@ class RATest extends GroovyTestCase {
         assertEquals([], ids)
     }
 
-    def perf(blurb, closure) {
+    static perf(blurb, closure) {
         long start = System.nanoTime()
         closure()
         println(blurb + ": " + ((System.nanoTime() - start)/1000000 as int) + "ms")
@@ -76,24 +78,26 @@ class RATest extends GroovyTestCase {
         def n = 10
         def nOfThreads = 4
         def data = sampleData()
-        data = data.collate(data.size() / n as int)
-        groovyx.gpars.GParsPool.withPool(nOfThreads) {
-            def test = { i ->
-                perf("task $i finished in") {
-                    def ra = new RA()
-                    load(ra, data[i], 10)
-                    def spam = loadSpam(ra, data[i], 1000)
-                    def spamIds = search(ra, spam, 5)
-                    remove(ra, spamIds)
+        data = data.collate(data.size() / n as int, false)
+        perf("multi-threaded test finished in") {
+            withPool(nOfThreads) {
+                def test = { i ->
+                    perf("task $i finished in") {
+                        def ra = new RA()
+                        load(ra, data[i], 10)
+                        def spam = loadSpam(ra, data[i], 1000)
+                        def spamIds = search(ra, spam, 5)
+                        remove(ra, spamIds)
+                    }
                 }
+                (0..n-1).collect { test.callAsync(it) } .each { it.get() }
             }
-            (0..n).collect { test.callAsync(it) } .each { it.get() }
         }
     }
 
     def sampleData() {
-        // def docDir = new File("/usr/share/doc")
-        def docDir = new File("/opt/local/share/doc")
+        def docDir = new File("/usr/share/doc")
+        // def docDir = new File("/opt/local/share/doc")
         def readmes = []
 
         docDir.eachFileRecurse(groovy.io.FileType.FILES) {
@@ -108,7 +112,7 @@ class RATest extends GroovyTestCase {
             }
         }.grep { it }
         assert data.size() > 20
-        println "total number of files: " + data.size() + "; chars: " + data.sum { it[1].length() }
+        println "total number of files: ${data.size()}; chars: ${data.sum { it[1].length() }}"
         data
     }
 
@@ -122,7 +126,7 @@ class RATest extends GroovyTestCase {
     }
 
     def loadSpam(ra, data, n) {
-        def spamAll = data.findAll { it[1].length() > 500 &&  it[1].length() < 3000 }
+        def spamAll = data.findAll { it[1].length() > 500 && it[1].length() < 3000 } ?: data
         def spam = spamAll[ rand.nextInt(spamAll.size()) ] [1]
         n.times {
             ra["random-spam-$it"] = spam

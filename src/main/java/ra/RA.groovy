@@ -34,31 +34,31 @@ class RA {
         init(n)
     }
 
-    private def init(int n) {
+    private init(int n) {
         n.times {
             redises << new Jedis(host, basePort + it)
         }
     }
 
-    static long previousPrint = 0
-    def rateLimit(String msg) {
+    private static long previousPrint = 0
+    private ratedPrintln(String msg) {
         long now = System.nanoTime()
         if (now - previousPrint > 1_000_000_000) {
             println msg
             previousPrint = now
         }
     }
-    def rateLimit(Exception e) { rateLimit(e.toString()) }
+    private ratedPrintln(Exception e) { ratedPrintln(e.toString()) }
 
     // TODO faster recovery in case 1. redis is down, 2. redis is stuck/slow
-    def allRedises(Closure closure) {
+    private allRedises(Closure closure) {
         withPool(nOfThreads) {
             redises.collect { closure.callAsync(it) } .collect { future ->
                 def result = []
                 try {
                     result = future.get()
                 } catch (Exception e) {
-                    rateLimit e
+                    ratedPrintln e
                     // TODO? redis.disconnect()
                 }
                 result
@@ -66,7 +66,7 @@ class RA {
         }
     }
 
-    def oneRedis(int preferred, Closure closure) {
+    private oneRedis(int preferred, Closure closure) {
         def n = redises.size()
         def ordered = n > 1 ? {
                 def rest = (preferred+1..preferred+n-1).collect { it % n }
@@ -79,7 +79,7 @@ class RA {
                 closure(redis)
                 done = true
             } catch (Exception e) {
-                rateLimit e
+                ratedPrintln e
                 redis.disconnect()
             }
             done
@@ -87,7 +87,7 @@ class RA {
     }
 
     def disconnect() {
-        allRedises { redis -> redis.disconnect() }
+        allRedises { redis -> redis.quit() }
     }
 
     /** Resets redis storage. */
@@ -103,7 +103,8 @@ class RA {
     List<String> tokenize(String s) {
         def prev = ''
         // Groovy unique() is O(N^2)
-        (s.split('[\\s,!]+') as List).grep { it.length() > 2 && !stopwords.contains(it) }.sort().inject([]) { uniq, token ->
+        (s.split('[\\s,!]+') as List).grep { it.length() > 2 && !stopwords.contains(it.toLowerCase()) }
+                .sort().inject([]) { uniq, token ->
             if (token != prev) {
                 uniq << token
                 prev = token
@@ -157,15 +158,11 @@ class RA {
 @Singleton
 class Stopwords {
     def lang = ['en', 'et', 'lv', 'lt', 'ru']
-    def words
-
-    Stopwords() {
-        words = lang.collect {
+    def words = lang.collect {
             getClass().getClassLoader().getResourceAsStream("stopwords/$it").withStream {
                 it.readLines("UTF-8").collect {
-                    it.replaceAll('\\s+', '')
+                    it.replaceAll('\\s+', '').toLowerCase()
                 }
             } .grep { it }
         } .flatten() as Set
-    }
 }

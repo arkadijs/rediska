@@ -7,7 +7,7 @@
     <name>Rediska</name>
 
     <properties>
-        <mavenrepo>http://repo.maven.apache.org/maven2</mavenrepo>
+        <mavencentral>http://repo.maven.apache.org/maven2</mavencentral>
         <codehaus>https://nexus.codehaus.org/content/groups/public</codehaus>
         <jboss>https://repository.jboss.org/nexus/content/groups/public-jboss</jboss>
 
@@ -21,8 +21,8 @@
 
     <repositories>
         <repository>
-            <id>mavenrepo</id>
-            <url>${mavenrepo}</url>
+            <id>mavencentral</id>
+            <url>${mavencentral}</url>
         </repository>
         <repository>
             <id>codehaus</id>
@@ -39,8 +39,8 @@
 
     <pluginRepositories>
         <pluginRepository>
-            <id>mavenrepo</id>
-            <url>${mavenrepo}</url>
+            <id>mavencentral</id>
+            <url>${mavencentral}</url>
         </pluginRepository>
         <pluginRepository>
             <id>codehaus</id>
@@ -175,7 +175,13 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.8.2</version>
+            <version>4.10</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.groovy-wslite</groupId>
+            <artifactId>groovy-wslite</artifactId>
+            <version>0.7.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
