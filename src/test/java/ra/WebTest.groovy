@@ -6,8 +6,11 @@ import org.junit.Test
 
 @org.junit.runner.RunWith(org.junit.runners.JUnit4.class)
 class WebTest extends GroovyTestCase {
+    def docPath = '/usr/lib/jvm/java-7-openjdk-i386/docs/api'
+  //def docPath = '/Users/arkadi/Manuals/jdk7'
+    def baseUri = 'http://localhost:8080'
     static server
-    RESTClient rest = new RESTClient("http://localhost:8080/content/")
+    RESTClient rest = new RESTClient("$baseUri/content/")
 
     @org.junit.BeforeClass
     static void start() {
@@ -27,7 +30,7 @@ class WebTest extends GroovyTestCase {
     @org.junit.Before
     void testRestReset() {
         RATest.perf("redis-es cleared in") {
-            assert 200 == new RESTClient("http://localhost:8080/reset").post() {} .statusCode
+            assert 200 == new RESTClient("$baseUri/reset").post() {} .statusCode
         }
     }
 
@@ -78,9 +81,9 @@ class WebTest extends GroovyTestCase {
             withPool(nOfThreads) {
                 def test = { i ->
                     RATest.perf("task $i finished in") {
-                        def rest = new RESTClient("http://localhost:8080/content/")
+                        def rest = new RESTClient("$baseUri/content/")
                         data[i].eachWithIndex { content, id ->
-                            assert 201 == rest.put(path: "$i-$id") { text content } .statusCode
+                            assert 201 == rest.put(path: content[0]) { text content[1] } .statusCode
                         }
                     }
                 }
@@ -90,29 +93,29 @@ class WebTest extends GroovyTestCase {
     }
 
     def sampleData() {
-        def docDir = new File("/usr/lib/jvm/java-7-openjdk-i386/docs/api")
+        def docDir = new File(docPath)
         def htmls = []
 
         docDir.eachFileRecurse(groovy.io.FileType.FILES) {
             if (it.name.endsWith(".html"))
                 htmls << it
         }
-        htmls = htmls[0..3000]
+        htmls = htmls[0..1000]
         def l = 5000
-        def data = htmls.collect {
-            def str = new String(it.readBytes(), "UTF-8")
+        def data = []
+        htmls.each { file ->
+            def id = file.canonicalPath
+            def str = new String(file.readBytes(), "UTF-8")
             if (str.length() > l) {
-                def splits = []
-                l.step(str.length(), l) {
-                    splits << str.substring(it-l, it)
+                l.step(str.length(), l) { i ->
+                    data << ["$id-$i", str.substring(i-l, i) ]
                 }
-                splits
             } else
-              str
-        } .flatten()
+                data << [id, str]
+        }
 
         assert data.size() > 1000
-        println "total number of chunks: ${data.size()}; chars: " + data.sum { it.length() }
+        println "total number of chunks: ${data.size()}; chars: " + data.sum { it[1].length() }
         data
     }
 }

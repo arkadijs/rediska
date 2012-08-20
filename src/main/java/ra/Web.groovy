@@ -85,5 +85,6 @@ Usage: POST   /reset
             return
         }
         ra.get().remove(ids)
+        cache.clear()
     }
 }

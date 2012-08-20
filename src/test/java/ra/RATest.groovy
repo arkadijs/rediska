@@ -3,6 +3,8 @@ package ra
 import static groovyx.gpars.GParsPool.withPool
 
 class RATest extends GroovyTestCase {
+    def docPath = '/usr/share/doc'
+  //def docPath = '/opt/local/share/doc'
     Random rand = new Random()
     RA ra
 
@@ -96,17 +98,16 @@ class RATest extends GroovyTestCase {
     }
 
     def sampleData() {
-        def docDir = new File("/usr/share/doc")
-        // def docDir = new File("/opt/local/share/doc")
+        def docDir = new File(docPath)
         def readmes = []
 
         docDir.eachFileRecurse(groovy.io.FileType.FILES) {
             if (it.name.contains("README") && !it.name.endsWith(".gz"))
                 readmes << it
         }
-        def data = readmes.collect {
+        def data = readmes.collect { file ->
             try {
-                [it.canonicalPath, new String(it.readBytes(), "UTF-8")]
+                [file.canonicalPath, new String(file.readBytes(), "UTF-8")]
             } catch (FileNotFoundException) { // broken symlink
                 null
             }
@@ -120,7 +121,7 @@ class RATest extends GroovyTestCase {
         n.times { i ->
             data.each {
                 def id = it[0]; def content = it[1]
-                ra[id + i] = content
+                ra["$id:load-$i"] = content
             }
         }
     }

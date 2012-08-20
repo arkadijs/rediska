@@ -36,32 +36,43 @@ class RA {
 
     private init(int n) {
         n.times {
-            redises << new Jedis(host, basePort + it)
+            redises << new Jedis(host, basePort + it, 20_000) // 20 sec
         }
     }
 
-    private static long previousPrint = 0
-    private ratedPrintln(String msg) {
+    private static long previousInvocation = 0
+    private rateLimit(Closure closure) {
         long now = System.nanoTime()
-        if (now - previousPrint > 1_000_000_000) {
-            println msg
-            previousPrint = now
+        def diff = now - previousInvocation
+        def near = diff < 1_000_000 // within millisecond
+        def far = diff > 1_000_000_000 // one second ago
+        if (near || far) {
+            closure()
+            if (far)
+                previousInvocation = now
         }
     }
-    private ratedPrintln(Exception e) { ratedPrintln(e.toString()) }
+    private ratedPrintln(String msg) { rateLimit { println msg } }
+    private ratedPrintln(Exception e) { rateLimit { e.printStackTrace() } }
 
-    // TODO faster recovery in case 1. redis is down, 2. redis is stuck/slow
+    private memoryLimit(Exception e) {
+        (e instanceof redis.clients.jedis.exceptions.JedisDataException &&
+                e.message.contains('maxmemory')) || memoryLimit(e.getCause())
+    }
+
     private allRedises(Closure closure) {
         withPool(nOfThreads) {
-            redises.collect { closure.callAsync(it) } .collect { future ->
-                def result = []
+            redises.collect { redis -> [redis, closure.callAsync(redis)] } .collect {
+                def (redis, future) = it
                 try {
-                    result = future.get()
+                    future.get()
                 } catch (Exception e) {
                     ratedPrintln e
-                    // TODO? redis.disconnect()
+                    redis.disconnect()
+                    if (memoryLimit(e))
+                        deleteAllKeys(redis)
+                    []
                 }
-                result
             } .flatten()
         }
     }
@@ -73,37 +84,43 @@ class RA {
                 Collections.shuffle(rest)
                 redises[preferred, rest]
             }.call() : redises
-        ordered.any { redis ->
-            def done = false
+        Exception ex
+        def success = ordered.any { redis ->
             try {
                 closure(redis)
-                done = true
+                true
             } catch (Exception e) {
                 ratedPrintln e
                 redis.disconnect()
+                if (memoryLimit(e))
+                    deleteAllKeys(redis)
+                ex = e
+                false
             }
-            done
         }
+        if (!success)
+            throw ex
     }
 
     def disconnect() {
         allRedises { redis -> redis.quit() }
     }
 
+    private deleteAllKeys(Jedis redis) {
+        def keys = redis.keys('*') as List
+        if (!keys.isEmpty())
+            redis.del(*keys)
+    }
+
     /** Resets redis storage. */
     def reset() {
-        allRedises { redis ->
-            def keys = redis.keys('*') as List
-            //println 'clearing ' + keys
-            if (!keys.isEmpty())
-                redis.del(*keys)
-        }
+        allRedises { deleteAllKeys(it) }
     }
 
     List<String> tokenize(String s) {
         def prev = ''
         // Groovy unique() is O(N^2)
-        (s.split('[\\s,!]+') as List).grep { it.length() > 2 && !stopwords.contains(it.toLowerCase()) }
+        (s.split('[\\s,!"<>/]+') as List).grep { it.length() > 2 && !stopwords.contains(it.toLowerCase()) }
                 .sort().inject([]) { uniq, token ->
             if (token != prev) {
                 uniq << token
@@ -127,16 +144,19 @@ class RA {
             def pipe = redis.pipelined()
             tokens.each { pipe.sadd(_token + it, id) }
             tokens.each { pipe.sadd(contentKey, it) }
-            pipe.sync()
+            pipe.sync() // syncAndReturnAll() should be used to detect OOM
         }
     }
 
     /** Searches for tokens in redis index, content-id-s = ra[sentence]. */
     List<String> getAt(String what) {
         def tokens = tokenize(what).collect { _token + it }
-        allRedises { redis ->
-            redis.sinter(*tokens) as List
-        }
+        if (!tokens)
+            []
+        else
+            allRedises { redis ->
+                redis.sinter(*tokens) as List
+            }
     }
 
     /** Removes content from redis index, ra.remove([content0, content1, ...]) */
