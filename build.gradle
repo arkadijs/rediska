@@ -8,18 +8,18 @@ tasks.withType(Compile) { options.encoding = 'UTF-8' }
 repositories {
     mavenLocal()
     mavenCentral()
+    maven { url 'https://repository.jboss.org/nexus/content/groups/public-jboss' }
 }
 
 sourceSets.main.groovy.srcDirs = ['src/main/java']
 sourceSets.test.groovy.srcDirs = ['src/test/java']
 
-jetty = '8.1.4.v20120524'
-
 dependencies {
     groovy 'org.codehaus.groovy:groovy-all:2.0.1'
     compile 'org.codehaus.gpars:gpars:1.0-beta-2'
     compile 'redis.clients:jedis:2.1.0'
-    compile "org.eclipse.jetty:jetty-server:$jetty"
-    compile "org.eclipse.jetty:jetty-servlet:$jetty"
+    compile "org.eclipse.jetty:jetty-server:8.1.4.v20120524"
+    compile "org.eclipse.jetty:jetty-servlet:8.1.4.v20120524"
     testCompile 'junit:junit:4.8.2'
+    testCompile 'com.github.groovy-wslite:groovy-wslite:0.7.1'
 }
