@@ -32,3 +32,8 @@ GET    /content?q=query+terms
 DELETE /content?q=query+terms
 DELETE /content?id=content-id1|content-id2|...
 ```
+
+### Web UI
+Open [http://server:8080/][1] in browser.
+
+[1]: http://localhost:8080
