@@ -141,9 +141,9 @@ class RA {
         def i = id.hashCode() % redises.size()
         def contentKey = _content + id
         oneRedis(i) { redis ->
+            redis.sadd(contentKey, *tokens)
             def pipe = redis.pipelined()
             tokens.each { pipe.sadd(_token + it, id) }
-            tokens.each { pipe.sadd(contentKey, it) }
             pipe.sync() // syncAndReturnAll() should be used to detect OOM
         }
     }
