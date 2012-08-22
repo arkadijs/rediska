@@ -66,8 +66,8 @@ Usage: POST   /reset
         }
         def ids = ra.get()[q]
         cache.put(q, ids)
-        resp.contentType = "application/json"
-        resp.characterEncoding = "UTF-8"
+        resp.contentType = 'application/json'
+        resp.characterEncoding = 'UTF-8'
         new groovy.json.StreamingJsonBuilder(resp.writer)(ids)
     }
 
