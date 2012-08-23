@@ -57,7 +57,7 @@ class RA {
 
     private memoryLimit(Exception e) {
         (e instanceof redis.clients.jedis.exceptions.JedisDataException &&
-                e.message.contains('maxmemory')) || memoryLimit(e.getCause())
+                e.message.contains('maxmemory')) || (e && memoryLimit(e.getCause()))
     }
 
     private allRedises(Closure closure) {
@@ -99,7 +99,7 @@ class RA {
             }
         }
         if (!success)
-            throw ex
+            throw new RuntimeException("All Redis instances failed, last exception attached", ex)
     }
 
     def disconnect() {
