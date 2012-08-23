@@ -37,6 +37,7 @@ class Main {
 
         def context = new ServletContextHandler(jetty, '/');
         def servlet = new ServletHolder(new Web())
+        servlet.initOrder = 1
         context.addServlet(servlet, '/content/*');
         context.addServlet(servlet, '/reset');
         handlers.addHandler(context)
