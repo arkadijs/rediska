@@ -45,6 +45,7 @@ class WebTest extends GroovyTestCase {
         testRestPut()
         def resp = rest.get(query: [q: what])
         assert 200 == resp.statusCode
+        assert 0 < Long.parseLong(resp.headers['X-RA-Elapsed'])
         assert [id] == resp.json
         resp
     }

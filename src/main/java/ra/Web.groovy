@@ -23,11 +23,21 @@ Usage: POST   /reset
         resp.sendError(HttpServletResponse.SC_BAD_REQUEST, help)
     }
 
+    def perf(HttpServletResponse resp, closure) {
+        long start = System.nanoTime()
+        def result = closure()
+        long elapsed = System.nanoTime() - start
+        resp.setHeader('X-RA-Elapsed', (elapsed > 0 ? elapsed : 0).toString())
+        result
+    }
+
     @Override
     void doPost(HttpServletRequest req, HttpServletResponse resp) {
         if (req.servletPath == '/reset') {
             cache.clear()
-            ra.get().reset()
+            perf(resp) {
+                ra.get().reset()
+            }
             resp.status = HttpServletResponse.SC_OK
         } else
             usage(resp)
@@ -50,7 +60,9 @@ Usage: POST   /reset
             def buf = java.nio.CharBuffer.allocate(limit)
             it.read(buf)
             if (buf.length() > 0 && !buf.isAllWhitespace()) {
-                ra.get()[contentId] = buf.rewind().toString()
+                perf(resp) {
+                    ra.get()[contentId] = buf.rewind().toString()
+                }
                 resp.setStatus(HttpServletResponse.SC_CREATED)
             } else
                 resp.setStatus(HttpServletResponse.SC_NO_CONTENT)
@@ -64,7 +76,9 @@ Usage: POST   /reset
             usage(resp)
             return
         }
-        def ids = ra.get()[q]
+        def ids = perf(resp) {
+            ra.get()[q]
+        }
         cache.put(q, ids)
         resp.contentType = 'application/json'
         resp.characterEncoding = 'UTF-8'
@@ -76,15 +90,17 @@ Usage: POST   /reset
         def ids
         def q = req.getParameter('q')
         def p = req.getParameter('id')
-        if (q != null) {
-            ids = cache.remove(q) ?: ra.get()[q]
-        } else if (p != null) {
-            ids = p.split('\\|') as List
-        } else {
-            usage(resp)
-            return
+        perf(resp) {
+            if (q != null) {
+                ids = cache.remove(q) ?: ra.get()[q]
+            } else if (p != null) {
+                ids = p.split('\\|') as List
+            } else {
+                usage(resp)
+                return
+            }
+            ra.get().remove(ids)
+            cache.clear()
         }
-        ra.get().remove(ids)
-        cache.clear()
     }
 }
