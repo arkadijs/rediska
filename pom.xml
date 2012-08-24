@@ -12,7 +12,7 @@
         <jboss>https://repository.jboss.org/nexus/content/groups/public-jboss</jboss>
 
         <groovy-version>2.0.1</groovy-version>
-        <jetty-version>8.1.4.v20120524</jetty-version>
+        <jetty-version>8.1.5.v20120716</jetty-version>
         <main-class>ra.Main</main-class>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -171,6 +171,16 @@
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-servlet</artifactId>
             <version>${jetty-version}</version>
+        </dependency>
+       <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-jmx</artifactId>
+            <version>${jetty-version}</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.management</groupId>
+            <artifactId>jmx_remote</artifactId>
+            <version>1.0.1_03</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

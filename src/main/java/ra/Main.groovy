@@ -16,6 +16,18 @@ class Main {
     static Server start(String[] args) {
         def jetty = new Server()
 
+        def mbeans = new org.eclipse.jetty.jmx.MBeanContainer(java.lang.management.ManagementFactory.getPlatformMBeanServer());
+        jetty.container.addEventListener(mbeans);
+        jetty.addBean(mbeans);
+        mbeans.addBean(org.eclipse.jetty.util.log.Log.getLog());
+        def jmx = new org.eclipse.jetty.jmx.ConnectorServer(
+            new javax.management.remote.JMXServiceURL(
+                'jmxmp', null, 7090),
+              //'service:jmx:jmxmp://' + (System.getProperty('java.rmi.server.hostname') ?: 'localhost') + ':7090'),
+              //'rmi', null, 7090, '/jndi/rmi://' + (System.getProperty('java.rmi.server.hostname') ?: 'localhost') + ':7090/jmxrmi'),
+            'org.eclipse.jetty.jmx:name=rmiconnectorserver')
+        jmx.start()
+
         def connector = new SelectChannelConnector();
         connector.port = 8080
         connector.requestHeaderSize = 65536 // allow large DELETE requests by content id

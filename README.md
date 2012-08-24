@@ -17,6 +17,7 @@ and JDK API folders respectively.
 2. Customize HTTP server port in `ra.Main` and `ra.WebTest`, defaults to 8080.
 3. `ra.RA.nOfRedises` must match the number set in `start-redises.sh`
 4. Customize `ra.RA.tokenize()` regexp to suit your need.
+5. Install JAR not available from Maven repos `./_dependency-jmx.sh` 
 
 `mvn package`
 
@@ -35,5 +36,9 @@ DELETE /content?id=content-id1|content-id2|...
 
 ### Web UI
 Open [http://server:8080/][1] in browser.
+
+### JMX monitoring
+Start VisualVM `jvisualvm --cp:a lib/jmxremote_optional.jar`. Add host and new JMX connection
+`service:jmx:jmxmp://server.host.com:7090`
 
 [1]: http://localhost:8080
