@@ -23,7 +23,6 @@ class Main {
         def jmx = new org.eclipse.jetty.jmx.ConnectorServer(
             new javax.management.remote.JMXServiceURL(
                 'jmxmp', null, 7090),
-              //'service:jmx:jmxmp://' + (System.getProperty('java.rmi.server.hostname') ?: 'localhost') + ':7090'),
               //'rmi', null, 7090, '/jndi/rmi://' + (System.getProperty('java.rmi.server.hostname') ?: 'localhost') + ':7090/jmxrmi'),
             'org.eclipse.jetty.jmx:name=rmiconnectorserver')
         jmx.start()
