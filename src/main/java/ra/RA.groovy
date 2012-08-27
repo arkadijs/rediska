@@ -21,17 +21,18 @@ class DummyRedis {
 class RA {
     def host = "localhost"
     def basePort = 6379
-    def nOfRedises = 2 // try to set to 3
+    def nOfRedises = 4
     def nOfThreads = 4
+    static nKeepDays = 2 // today + 2 -> total 3 days
+    static nDatabases = 32
     def stopwords = Stopwords.instance.words
     List<Jedis> redises = []
+    // XXX synchronization
+    static volatile int currentDatabase = 1
+    static volatile List<Integer> activeDatabases = [1]
 
     RA() {
         init(nOfRedises)
-    }
-
-    RA(n) {
-        init(n)
     }
 
     private init(int n) {
@@ -60,7 +61,19 @@ class RA {
                 e.message.contains('maxmemory')) || (e && memoryLimit(e.getCause()))
     }
 
-    private allRedises(Closure closure) {
+    private void allRedisesOneByOne(Closure closure) {
+        redises.each { redis ->
+            try {
+                closure(redis)
+            } catch (Exception e) {
+                ratedPrintln e
+                if (!memoryLimit(e))
+                    redis.disconnect()
+            }
+        }
+    }
+
+    private List allRedises(Closure closure) {
         withPool(nOfThreads) {
             redises.collect { redis -> [redis, closure.callAsync(redis)] } .collect {
                 def (redis, future) = it
@@ -68,16 +81,15 @@ class RA {
                     future.get()
                 } catch (Exception e) {
                     ratedPrintln e
-                    redis.disconnect()
-                    if (memoryLimit(e))
-                        deleteAllKeys(redis)
+                    if (!memoryLimit(e))
+                        redis.disconnect()
                     []
                 }
             } .flatten()
         }
     }
 
-    private oneRedis(int preferred, Closure closure) {
+    private void oneRedis(int preferred, Closure closure) {
         def n = redises.size()
         def ordered = n > 1 ? {
                 def rest = (preferred+1..preferred+n-1).collect { it % n }
@@ -91,9 +103,8 @@ class RA {
                 true
             } catch (Exception e) {
                 ratedPrintln e
-                redis.disconnect()
-                if (memoryLimit(e))
-                    deleteAllKeys(redis)
+                if (!memoryLimit(e))
+                    redis.disconnect()
                 ex = e
                 false
             }
@@ -106,15 +117,25 @@ class RA {
         allRedises { redis -> redis.quit() }
     }
 
-    private deleteAllKeys(Jedis redis) {
-        def keys = redis.keys('*') as List
+    private deleteDatabaseKeys(Jedis redis, int dbIndex) {
+        redis.select(dbIndex)
+        def keys = redis.keys('*') as List // XXX too many keys to fit in memory?
         if (!keys.isEmpty())
             redis.del(*keys)
     }
 
+    private deleteAllKeys(Jedis redis) {
+        nDatabases.times { dbIndex -> deleteDatabaseKeys(redis, dbIndex) }
+    }
+
+    /** Resets one day of redis storage. */
+    def resetDay(int day) {
+        allRedisesOneByOne { redis -> deleteDatabaseKeys(redis, day) }
+    }
+
     /** Resets redis storage. */
     def reset() {
-        allRedises { deleteAllKeys(it) }
+        allRedisesOneByOne { redis -> deleteAllKeys(redis) }
     }
 
     List<String> tokenize(String s) {
@@ -141,6 +162,7 @@ class RA {
         def i = id.hashCode() % redises.size()
         def contentKey = _content + id
         oneRedis(i) { redis ->
+            redis.select(currentDatabase)
             redis.sadd(contentKey, *tokens)
             def pipe = redis.pipelined()
             tokens.each { pipe.sadd(_token + it, id) }
@@ -155,21 +177,27 @@ class RA {
             []
         else
             allRedises { redis ->
-                redis.sinter(*tokens) as List
+                activeDatabases.inject([]) { result, dbIndex ->
+                    redis.select(dbIndex)
+                    result << (redis.sinter(*tokens) as List) // flatten() is performed by allRedises()
+                }
             }
     }
 
     /** Removes content from redis index, ra.remove([content0, content1, ...]) */
     def remove(List<String> ids) {
         allRedises { redis ->
-            ids.each { id ->
-                def pipe = redis.pipelined()
-                def contentKey = _content + id
-                redis.smembers(contentKey).each {
-                    pipe.srem(_token + it, id)
+            activeDatabases.each { dbIndex ->
+                redis.select(dbIndex)
+                ids.each { id ->
+                    def pipe = redis.pipelined()
+                    def contentKey = _content + id
+                    redis.smembers(contentKey).each {
+                        pipe.srem(_token + it, id)
+                    }
+                    pipe.del(contentKey)
+                    pipe.sync()
                 }
-                pipe.del(contentKey)
-                pipe.sync()
             }
         }
     }

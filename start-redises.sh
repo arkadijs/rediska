@@ -4,10 +4,10 @@ set -e
 
 redis=/home/user/Work/redis-2.4.16/src/redis-server
 #redis=/Users/arkadi/Work/redis-2.4.16/src/redis-server
-n=2
+n=4
 dir=/var/tmp
 base_port=6379
-maxmemory=512mb # for every redis
+maxmemory=256mb # for every redis
 
 cd $dir
 

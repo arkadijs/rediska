@@ -11,11 +11,10 @@ Usage: POST   /reset
        DELETE /content?id=content-id1|content-id2|...
 '''
     def limit = 10000
-    def nOfRedises = 2
     def cache = Collections.synchronizedMap(new WeakHashMap<String, List<String>>())
 
     def ra = new ThreadLocal<RA>() {
-        @Override RA initialValue() { new RA(nOfRedises) }
+        @Override RA initialValue() { new RA() }
         @Override void remove() { get().disconnect(); super.remove() }
     }
 
@@ -29,6 +28,11 @@ Usage: POST   /reset
         long elapsed = System.nanoTime() - start
         resp.setHeader('X-RA-Elapsed', (elapsed > 0 ? elapsed : 0).toString())
         result
+    }
+
+    @Override
+    void init() {
+        Cleaner.init()
     }
 
     @Override
