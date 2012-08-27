@@ -4,7 +4,6 @@ import static groovyx.gpars.GParsPool.withPool
 
 class RATest extends GroovyTestCase {
     def docPath = '/usr/share/doc'
-  //def docPath = '/opt/local/share/doc'
     Random rand = new Random()
     RA ra
 
