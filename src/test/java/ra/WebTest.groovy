@@ -65,7 +65,7 @@ class WebTest extends GroovyTestCase {
         assert 201 == rest.put(path: id2) { text aboutLife }.statusCode
         def q = [query: [q: what]]
         def ids = rest.get(q).json
-        assert [id, id2] == ids
+        assert [id, id2].sort() == ids.sort()
         // ids is JSONArray which join() method quotes strings, so make it Java array first
         assert 200 == rest.delete(query: [id: ids.toArray().join('|')]).statusCode
         assert [] == rest.get(q).json
@@ -74,8 +74,8 @@ class WebTest extends GroovyTestCase {
     @Test
     void testRestMT() {
         testRestReset()
-        def n = 8
-        def nOfThreads = 3
+        def n = 16
+        def nOfThreads = 16
         def data = sampleData()
         data = data.collate(data.size() / n as int)
         RATest.perf("multi-threaded web test finished in") {
