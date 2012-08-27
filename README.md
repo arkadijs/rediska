@@ -38,7 +38,8 @@ DELETE /content?id=content-id1|content-id2|...
 Open [http://server:8080/][1] in browser.
 
 ### JMX monitoring
-Start VisualVM `jvisualvm --cp:a lib/jmxremote_optional.jar`. Add host and new JMX connection
+Start VisualVM `jvisualvm --cp:a lib/jmxremote_optional.jar` or just `./jvisualvm.sh`. Add host and new JMX connection
+
 `service:jmx:jmxmp://server.host.com:7090`
 
 [1]: http://localhost:8080
