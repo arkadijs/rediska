@@ -4,7 +4,8 @@ class Cleaner implements Runnable {
 
     static init() {
         def t = new Thread(new Cleaner())
-        t.setDaemon(true)
+        t.name = "RA Cleaner"
+        t.daemon = true
         t.start()
     }
 
