@@ -54,7 +54,7 @@ Usage: POST   /reset
             req.characterEncoding = 'UTF-8'
 
         def pi = req.pathInfo
-        if (pi == null || pi.isEmpty() || pi.length() < 2) {
+        if (pi == null || pi.isEmpty() || pi.length() < 2 || pi == '/null') {
             usage(resp)
             return
         }
