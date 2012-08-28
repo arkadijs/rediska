@@ -28,6 +28,7 @@ class Cleaner implements Runnable {
         def day = cal.get(Calendar.DAY_OF_MONTH)
         if (prevDay != day) {
             def active = activeDatabases(cal)
+            println "cleaner -> current database = $day"
             println "cleaner -> active databases = $active"
             // XXX synchronization
             RA.currentDatabase = day

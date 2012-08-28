@@ -5,13 +5,12 @@ import javax.servlet.http.*
 class Web extends HttpServlet {
     def help = '''
 Usage: POST   /reset
-       PUT    /content/<content-id>
-       GET    /content?q=query+terms
+       PUT    /content/<content-id> (201 Created)
+       GET    /content?q=query+terms[&rc=1] (set rc= to return tokenized content)
        DELETE /content?q=query+terms
        DELETE /content?id=content-id1|content-id2|...
 '''
     def limit = 10000
-    def cache = Collections.synchronizedMap(new WeakHashMap<String, List<String>>())
 
     def ra = new ThreadLocal<RA>() {
         @Override RA initialValue() { new RA() }
@@ -38,7 +37,6 @@ Usage: POST   /reset
     @Override
     void doPost(HttpServletRequest req, HttpServletResponse resp) {
         if (req.servletPath == '/reset') {
-            cache.clear()
             perf(resp) {
                 ra.get().reset()
             }
@@ -62,10 +60,11 @@ Usage: POST   /reset
 
         req.reader.withReader {
             def buf = java.nio.CharBuffer.allocate(limit)
-            it.read(buf)
+            buf.limit(it.read(buf))
+            buf.rewind()
             if (buf.length() > 0 && !buf.isAllWhitespace()) {
                 perf(resp) {
-                    ra.get()[contentId] = buf.rewind().toString()
+                    ra.get()[contentId] = buf.toString()
                 }
                 resp.setStatus(HttpServletResponse.SC_CREATED)
             } else
@@ -80,10 +79,10 @@ Usage: POST   /reset
             usage(resp)
             return
         }
+        boolean returnContent = req.getParameter('rc') ?: false
         def ids = perf(resp) {
-            ra.get()[q]
+            ra.get().search(q, returnContent)
         }
-        cache.put(q, ids)
         resp.contentType = 'application/json'
         resp.characterEncoding = 'UTF-8'
         new groovy.json.StreamingJsonBuilder(resp.writer)(ids)
@@ -96,7 +95,7 @@ Usage: POST   /reset
         def p = req.getParameter('id')
         perf(resp) {
             if (q != null) {
-                ids = cache.remove(q) ?: ra.get()[q]
+                ids = ra.get()[q]
             } else if (p != null) {
                 ids = p.split('\\|') as List
             } else {
@@ -104,7 +103,6 @@ Usage: POST   /reset
                 return
             }
             ra.get().remove(ids)
-            cache.clear()
         }
     }
 }

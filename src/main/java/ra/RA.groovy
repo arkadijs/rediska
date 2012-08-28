@@ -19,7 +19,7 @@ class DummyRedis {
 }
 
 class RA {
-    def host = "localhost"
+    def host = 'localhost'
     def basePort = 6379
     def nOfRedises = 4
     def nOfThreads = 4
@@ -136,7 +136,7 @@ class RA {
     List<String> tokenize(String s) {
         def prev = ''
         // Groovy unique() is O(N^2)
-        (s.split('[\\s,!"<>/]+') as List).grep { it.length() > 2 && !stopwords.contains(it.toLowerCase()) }
+        s.split('[\\s,!"<>/]+').grep { it.length() > 2 } .collect { it.toLowerCase() } .grep { !stopwords.contains(it) }
                 .sort().inject([]) { uniq, token ->
             if (token != prev) {
                 uniq << token
@@ -146,8 +146,8 @@ class RA {
         }
     }
 
-    def _token = "t:"
-    def _content = "c:"
+    def _token = 't:'
+    def _content = 'c:'
 
     /** Puts content into redis index, ra[id] = content. */
     def putAt(String id, String content) {
@@ -167,6 +167,13 @@ class RA {
 
     /** Searches for tokens in redis index, content-id-s = ra[sentence]. */
     List<String> getAt(String what) {
+        search(what, false)
+    }
+
+    /** Searches for tokens in redis index, returning plain list of content-id-s
+     * or list of hashes in case of returnContent == true.
+     * @return  [[ id = ..., text = ... ], ...] = ra.search(sentence, true) */
+    List search(String what, boolean returnContent) {
         def tokens = tokenize(what).collect { _token + it }
         if (!tokens)
             []
@@ -174,7 +181,21 @@ class RA {
             allRedises { redis ->
                 activeDatabases.inject([]) { result, dbIndex ->
                     redis.select(dbIndex)
-                    result << (redis.sinter(*tokens) as List) // flatten() is performed by allRedises()
+                    def ids = redis.sinter(*tokens) as List
+                    if (!ids.isEmpty()) {
+                        // flatten() is performed by allRedises()
+                        if (!returnContent)
+                            result << ids
+                        else {
+                            result << ids.collect {
+                                [
+                                    id: it,
+                                    text: redis.smembers(_content + it).toList().sort().join(' ')
+                                ]
+                            }
+                        }
+                    }
+                    result
                 }
             }
     }

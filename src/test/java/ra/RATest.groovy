@@ -23,18 +23,24 @@ class RATest extends GroovyTestCase {
         assert w.contains('тогда')
     }
 
-    def aboutDog = "Slow dog runs over lucky tock"
-    def what = aboutDog.split(" ")[1,2].join(" ")
+    def aboutDog = 'Slow dog runs over lucky tock'
+    def what = aboutDog.split(' ')[1,2].join(' ')
 
     void testFindInSentence() {
-        ra["A"] = aboutDog
+        ra['A'] = aboutDog
         def ids = ra[what]
-        assertEquals(["A"], ids)
+        assertEquals(['A'], ids)
+    }
+
+    void testReturnContent() {
+        ra['A'] = aboutDog
+        def ids = ra.search(what, true)
+        assertEquals([[id: 'A', text: 'dog lucky runs slow tock']], ids)
     }
 
     void testRemoveContent() {
-        ra["B"] = aboutDog
-        ra.remove(["B"])
+        ra['B'] = aboutDog
+        ra.remove(['B'])
         def ids = ra[what]
         assertEquals([], ids)
     }
@@ -48,7 +54,7 @@ class RATest extends GroovyTestCase {
     void testPerformance() {
         // read README files from doc dir
         def data
-        perf("files read in") {
+        perf('files read in') {
             data = sampleData()
         }
         // add READMEs content
@@ -70,7 +76,7 @@ class RATest extends GroovyTestCase {
         }
         assert spamIds.size() >= x && spamIds.size() < 1.1*x
         // remove spam from dictionary
-        perf("spam removed from dictionary in") {
+        perf('spam removed from dictionary in') {
             remove(ra, spamIds)
         }
     }
@@ -80,7 +86,7 @@ class RATest extends GroovyTestCase {
         def nOfThreads = 4
         def data = sampleData()
         data = data.collate(data.size() / n as int, false)
-        perf("multi-threaded test finished in") {
+        perf('multi-threaded test finished in') {
             withPool(nOfThreads) {
                 def test = { i ->
                     perf("task $i finished in") {
@@ -101,12 +107,12 @@ class RATest extends GroovyTestCase {
         def readmes = []
 
         docDir.eachFileRecurse(groovy.io.FileType.FILES) {
-            if (it.name.contains("README") && !it.name.endsWith(".gz"))
+            if (it.name.contains('README') && !it.name.endsWith('.gz'))
                 readmes << it
         }
         def data = readmes.collect { file ->
             try {
-                [file.canonicalPath, new String(file.readBytes(), "UTF-8")]
+                [file.canonicalPath, new String(file.readBytes(), 'UTF-8')]
             } catch (FileNotFoundException) { // broken symlink
                 null
             }

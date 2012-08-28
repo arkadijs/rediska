@@ -23,12 +23,12 @@ class WebTest extends GroovyTestCase {
 
     def id = 'ABC'
     def id2 = 'DEF'
-    def aboutLife = "Life is wonderful and then I die"
-    def what = "Life is wonderful"
+    def aboutLife = 'Life is wonderful and then I\'m free'
+    def what = 'Life is wonderful'
 
     @org.junit.Before
     void testRestReset() {
-        RATest.perf("redis-es cleared in") {
+        RATest.perf('redis-es cleared in') {
             assert 200 == new RESTClient("$baseUri/reset").post() {} .statusCode
         }
     }
@@ -46,7 +46,15 @@ class WebTest extends GroovyTestCase {
         assert 200 == resp.statusCode
         assert 0 < Long.parseLong(resp.headers['X-RA-Elapsed'])
         assert [id] == resp.json
-        resp
+    }
+
+    @Test
+    void testRestReturnContent() {
+        testRestPut()
+        def resp = rest.get(query: [q: what, rc: true])
+        assert 200 == resp.statusCode
+        assert 0 < Long.parseLong(resp.headers['X-RA-Elapsed'])
+        assert [[id: id, text: 'free life wonderful']] == resp.json
     }
 
     @Test
