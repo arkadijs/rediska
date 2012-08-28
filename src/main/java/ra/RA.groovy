@@ -117,25 +117,20 @@ class RA {
         allRedises { redis -> redis.quit() }
     }
 
-    private deleteDatabaseKeys(Jedis redis, int dbIndex) {
-        redis.select(dbIndex)
-        def keys = redis.keys('*') as List // XXX too many keys to fit in memory?
-        if (!keys.isEmpty())
-            redis.del(*keys)
-    }
-
-    private deleteAllKeys(Jedis redis) {
-        nDatabases.times { dbIndex -> deleteDatabaseKeys(redis, dbIndex) }
-    }
-
     /** Resets one day of redis storage. */
     def resetDay(int day) {
-        allRedisesOneByOne { redis -> deleteDatabaseKeys(redis, day) }
+        allRedisesOneByOne { redis ->
+            def r = redis.select(day)
+            if (r == 'OK')
+                redis.flushDB()
+            else
+                println "Redis SELECT failed: $r"
+        }
     }
 
     /** Resets redis storage. */
     def reset() {
-        allRedisesOneByOne { redis -> deleteAllKeys(redis) }
+        allRedisesOneByOne { it.flushAll() }
     }
 
     List<String> tokenize(String s) {
@@ -207,7 +202,7 @@ class RA {
 class Stopwords {
     def lang = ['en', 'et', 'lv', 'lt', 'ru']
     def words = lang.collect {
-            getClass().getClassLoader().getResourceAsStream("stopwords/$it").withStream {
+            this.class.classLoader.getResourceAsStream("stopwords/$it").withStream {
                 it.readLines("UTF-8").collect {
                     it.replaceAll('\\s+', '').toLowerCase()
                 }
