@@ -7,7 +7,6 @@ import org.junit.Test
 @org.junit.runner.RunWith(org.junit.runners.JUnit4.class)
 class WebTest extends GroovyTestCase {
     def docPath = '/usr/lib/jvm/java-7-openjdk-i386/docs/api'
-  //def docPath = '/Users/arkadi/Manuals/jdk7'
     def baseUri = 'http://localhost:8080'
     static server
     RESTClient rest = new RESTClient("$baseUri/content/")
@@ -78,13 +77,29 @@ class WebTest extends GroovyTestCase {
         def nOfThreads = 16
         def data = sampleData()
         data = data.collate(data.size() / n as int)
-        RATest.perf("multi-threaded web test finished in") {
+        RATest.perf("multi-threaded put web test finished in") {
             withPool(nOfThreads) {
                 def test = { i ->
-                    RATest.perf("task $i finished in") {
+                    RATest.perf("put task $i finished in") {
                         def rest = new RESTClient("$baseUri/content/")
                         data[i].eachWithIndex { content, id ->
                             assert 201 == rest.put(path: content[0]) { text content[1] } .statusCode
+                        }
+                    }
+                }
+                (0..n).collect { test.callAsync(it) } .each { it.get() }
+            }
+        }
+        def s = 100
+        RATest.perf("multi-threaded search web test finished in") {
+            withPool(nOfThreads) {
+                def test = { i ->
+                    RATest.perf("search task $i finished in") {
+                        def rest = new RESTClient("$baseUri/content")
+                        s.times {
+                            def r = rest.get(query: [q: "Runtime Locale"])
+                            assert 200 == r.statusCode
+                            assert 0 < r.json.size()
                         }
                     }
                 }
