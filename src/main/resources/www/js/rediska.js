@@ -1,15 +1,21 @@
 $(document).ready(
     function () {
         var query = $('#query')
+        var rc = $('#rc')
         var results = $('#results')
         var dis = 'disabled'
         var bc = 'background-color'
         var color = query.css(bc)
 
         var search = function (event) {
-            $.get('/content', { q: query.val() },
+            $.get('/content', { q: query.val(), rc: rc.is(':checked') ? 1 : '' },
                 function (data) {
-                    results.html(data.length > 0 ? ('<pre>' + data.join('<br/>') + '</pre>') : '<br/>[no results]')
+                    results.html(
+                        data.length < 1 ? '<br/>[no results]'
+                          : typeof data[0].id == 'undefined' ?
+                                '<pre>' + data.join('<br/>') + '</pre>'
+                              : data.map(function (e) { return '<br/><b>' + e.id + '</b><br/>' + e.text }).join('<br/>')
+                        )
                     query.focus()
                 })
         }
