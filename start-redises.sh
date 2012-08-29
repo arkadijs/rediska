@@ -3,7 +3,6 @@
 set -e
 
 redis=/home/user/Work/redis-2.4.16/src/redis-server
-#redis=/Users/arkadi/Work/redis-2.4.16/src/redis-server
 n=4
 dir=/var/tmp
 base_port=6379
