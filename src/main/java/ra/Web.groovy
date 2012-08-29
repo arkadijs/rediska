@@ -5,7 +5,7 @@ import javax.servlet.http.*
 class Web extends HttpServlet {
     def help = '''
 Usage: POST   /reset
-       PUT    /content/<content-id> (201 Created)
+       PUT    /content[/<content-id>] (201 Created, replies assigned/provided content-id)
        GET    /content?q=query+terms[&rc=1] (set rc= to return tokenized content)
        DELETE /content?q=query+terms
        DELETE /content?id=content-id1|content-id2|...
@@ -51,12 +51,15 @@ Usage: POST   /reset
         if (req.characterEncoding == null)
             req.characterEncoding = 'UTF-8'
 
+        String contentId
         def pi = req.pathInfo
-        if (pi == null || pi.isEmpty() || pi.length() < 2 || pi == '/null') {
+        if (pi == null || pi.isEmpty() || pi.length() < 2)
+            contentId = UUID.randomUUID()
+        else if (pi == '/null') {
             usage(resp)
             return
-        }
-        def contentId = pi.substring(1)
+        } else
+            contentId = pi.substring(1)
 
         req.reader.withReader {
             def buf = java.nio.CharBuffer.allocate(limit)
@@ -66,9 +69,14 @@ Usage: POST   /reset
                 perf(resp) {
                     ra.get()[contentId] = buf.toString()
                 }
-                resp.setStatus(HttpServletResponse.SC_CREATED)
+                resp.status = HttpServletResponse.SC_CREATED
+                resp.contentType = 'text/plain'
+                resp.characterEncoding = 'UTF-8'
+                resp.writer.withWriter {
+                    it.write(contentId)
+                }
             } else
-                resp.setStatus(HttpServletResponse.SC_NO_CONTENT)
+                resp.status = HttpServletResponse.SC_NO_CONTENT
         }
     }
 
@@ -79,9 +87,8 @@ Usage: POST   /reset
             usage(resp)
             return
         }
-        boolean returnContent = req.getParameter('rc') ?: false
         def ids = perf(resp) {
-            ra.get().search(q, returnContent)
+            ra.get().search(q, req.getParameter('rc') as boolean)
         }
         resp.contentType = 'application/json'
         resp.characterEncoding = 'UTF-8'

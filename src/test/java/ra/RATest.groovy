@@ -19,8 +19,16 @@ class RATest extends GroovyTestCase {
 
     void testStopwords() {
         def w = Stopwords.instance.words
+        assert w.contains('http')
         assert w.contains('about')
         assert w.contains('тогда')
+    }
+
+    void testTokenizer() {
+        assert ['awesome'] == ra.tokenize('and awesome')
+        assert ['awesome', 'bit', 'm-w', 'path', 'path2', 'query', 'times',
+                'bit.ly/path/path2/', 'm-w.com', 'www.times.com'] ==
+            ra.tokenize('and awesome http://bit.ly/path/path2/?query m-w.com?d/w www.times.com/?zz')
     }
 
     def aboutDog = 'Slow dog runs over lucky tock'

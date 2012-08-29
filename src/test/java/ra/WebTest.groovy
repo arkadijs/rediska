@@ -33,10 +33,21 @@ class WebTest extends GroovyTestCase {
         }
     }
 
+    @Test
     void testRestPut() {
         assert 201 == rest.put(path: id) {
             text aboutLife
         } .statusCode
+    }
+
+    @Test
+    void testRestAssignedId() {
+        def r = rest.put() {
+            text aboutLife
+        }
+        assert 201 == r.statusCode
+        assert 'text/plain' == r.contentType
+        assert !r.contentAsString.isEmpty()
     }
 
     @Test

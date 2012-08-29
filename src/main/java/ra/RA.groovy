@@ -133,17 +133,21 @@ class RA {
         allRedisesOneByOne { it.flushAll() }
     }
 
+    def splitter = ~/[\s,\.\?!"':=<>\(\)\[\]\/\\]+/
+    def hostname = ~/[\w-]+(\.[\w-]+)+(?:\/[\w\/\+-]+)?/
     List<String> tokenize(String s) {
         def prev = ''
-        // Groovy unique() is O(N^2)
-        s.split('[\\s,!"<>/]+').grep { it.length() > 2 } .collect { it.toLowerCase() } .grep { !stopwords.contains(it) }
+        // Groovy unique() is O(N^2) :/
+        splitter.split(s)
+                .grep { it.length() > 2 } .collect { it.toLowerCase() } .grep { !stopwords.contains(it) }
                 .sort().inject([]) { uniq, token ->
             if (token != prev) {
                 uniq << token
                 prev = token
             }
             uniq
-        }
+        } +
+        hostname.matcher(s).collect { it[0] }
     }
 
     def _token = 't:'
@@ -221,10 +225,10 @@ class RA {
 
 @Singleton
 class Stopwords {
-    def lang = ['en', 'et', 'lv', 'lt', 'ru']
+    def lang = ['en', 'et', 'lv', 'lt', 'ru', '_special']
     def words = lang.collect {
             this.class.classLoader.getResourceAsStream("stopwords/$it").withStream {
-                it.readLines("UTF-8").collect {
+                it.readLines('UTF-8').collect {
                     it.replaceAll('\\s+', '').toLowerCase()
                 }
             } .grep { it }

@@ -17,7 +17,7 @@ and JDK API folders respectively.
 2. Customize HTTP server port in `ra.Main` and `ra.WebTest`, defaults to 8080.
 3. `ra.RA.nOfRedises` must match the number set in `start-redises.sh`
 4. Customize `ra.RA.tokenize()` regexp to suit your need.
-5. Install JAR not available from Maven repos `./_dependency-jmx.sh` 
+5. Install JAR not available from Maven repos `./_dependency-jmx.sh`
 
 `mvn package`
 
@@ -28,8 +28,8 @@ and JDK API folders respectively.
 ## API
 ```
 POST   /reset
-PUT    /content/<content-id>
-GET    /content?q=query+terms
+PUT    /content[/<content-id>] (201 Created, replies assigned/provided content-id)
+GET    /content?q=query+terms[&rc=1] (set rc= to return tokenized content)
 DELETE /content?q=query+terms
 DELETE /content?id=content-id1|content-id2|...
 ```
