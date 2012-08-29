@@ -40,7 +40,6 @@ class Main {
         if (index != null) {
             def uri = index.toURI().toString()
             def res = new ResourceHandler()
-          //res.resourceBase = '/Users/arkadi/Work/Rediska/src/main/resources/www'
             res.resourceBase = uri.substring(0, uri.indexOf('/index.html'))
             res.welcomeFiles = ['index.html']
             handlers.addHandler(res)
