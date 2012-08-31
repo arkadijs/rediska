@@ -63,7 +63,12 @@ Usage: POST   /reset
 
         req.reader.withReader {
             def buf = java.nio.CharBuffer.allocate(limit)
-            buf.limit(it.read(buf))
+            def cnt = it.read(buf)
+            if (cnt < 1) {
+                resp.status = HttpServletResponse.SC_NO_CONTENT
+                return
+            }
+            buf.limit(cnt)
             buf.rewind()
             if (buf.length() > 0 && !buf.isAllWhitespace()) {
                 perf(resp) {
