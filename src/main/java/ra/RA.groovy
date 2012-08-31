@@ -132,7 +132,7 @@ class RA {
         allRedisesOneByOne { it.flushAll() }
     }
 
-    def splitter = ~/[\s,\.\?!"':=<>\(\)\[\]\/\\]+/
+    def splitter = ~/[\s,\.\?!"':=\<\>\(\)\[\]\/\\]+/
     def hostname = ~/[\w-]+(\.[\w-]+)+(?:\/[\w\/\+-]+)?/
     List<String> tokenize(String s) {
         def prev = ''
