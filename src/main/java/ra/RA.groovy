@@ -24,7 +24,6 @@ class RA {
     def nOfRedises = 4
     def nOfThreads = 4
     static nKeepDays = 2 // today + 2 -> total 3 days
-    static nDatabases = 32
     def stopwords = Stopwords.instance.words
     List<Jedis> redises = []
     // XXX synchronization
