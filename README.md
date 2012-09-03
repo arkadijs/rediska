@@ -12,8 +12,8 @@ Edit `start-redises.sh` to set path to `redis-server`, number of servers, and pe
 
 ### Build
 
-1. If you want to run tests, edit `src/main/java/*Test.groovy`. Set `ra.RATest.docPath` and `ra.WebTest.docPath` to README
-and JDK API folders respectively.
+1. If you want to run tests: (a) Edit `src/main/java/*Test.groovy`. Set `ra.RATest.docPath` and `ra.WebTest.docPath` to README
+and JDK API folders respectively. (b) Install [Rediska-J][2] into local Maven cache.
 2. Customize HTTP server port in `ra.Main` and `ra.WebTest`, defaults to 8080.
 3. `ra.RA.nOfRedises` must match the number set in `start-redises.sh`
 4. Customize `ra.RA.tokenize()` regexp to suit your need.
@@ -23,7 +23,7 @@ and JDK API folders respectively.
 
 ### Start server
 
-`java -Xmx1024m -jar target/rediska-1.0-jar-with-dependencies.jar`
+`java -Xmx512m -jar target/rediska-1.0-jar-with-dependencies.jar`
 
 ## API
 ```
@@ -43,3 +43,4 @@ Start VisualVM `jvisualvm --cp:a lib/jmxremote_optional.jar` or just `./jvisualv
 `service:jmx:jmxmp://server.host.com:7090`
 
 [1]: http://localhost:8080
+[2]: https://bitbucket.org/arkadi/rediska-j

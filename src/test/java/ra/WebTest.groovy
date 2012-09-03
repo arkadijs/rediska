@@ -9,7 +9,7 @@ class WebTest extends GroovyTestCase {
     def docPath = '/usr/lib/jvm/java-7-openjdk-i386/docs/api'
     def baseUri = 'http://localhost:8080'
     static server
-    RESTClient rest = new RESTClient("$baseUri/content/")
+    RESTClient rest = new RESTClient("$baseUri/content")
 
     @org.junit.BeforeClass
     static void start() {
@@ -64,7 +64,6 @@ class WebTest extends GroovyTestCase {
         testRestPut()
         def resp = rest.get(query: [q: what, rc: true])
         assert 200 == resp.statusCode
-        assert 0 < Long.parseLong(resp.headers['X-RA-Elapsed'])
         assert [[id: id, text: 'free life wonderful']] == resp.json
     }
 
@@ -91,38 +90,77 @@ class WebTest extends GroovyTestCase {
 
     @Test
     void testRestMT() {
-        testRestReset()
         def n = 16
-        def nOfThreads = 16
+        def nOfThreads = 16+1
         def data = sampleData()
         data = data.collate(data.size() / n as int)
-        RATest.perf("multi-threaded put web test finished in") {
+        RATest.perf('multi-threaded put web test finished in') {
             withPool(nOfThreads) {
-                def test = { i ->
+                def test = { dataChunk, i ->
                     RATest.perf("put task $i finished in") {
                         def rest = new RESTClient("$baseUri/content/")
-                        data[i].eachWithIndex { content, id ->
+                        dataChunk.each { content ->
                             assert 201 == rest.put(path: content[0]) { text content[1] } .statusCode
                         }
                     }
                 }
-                (0..n).collect { test.callAsync(it) } .each { it.get() }
+                (0..n).collect { test.callAsync(data[it], it) } .each { it.get() }
             }
         }
         def s = 100
-        RATest.perf("multi-threaded search web test finished in") {
+        RATest.perf('multi-threaded search web test finished in') {
             withPool(nOfThreads) {
                 def test = { i ->
                     RATest.perf("search task $i finished in") {
                         def rest = new RESTClient("$baseUri/content")
                         s.times {
-                            def r = rest.get(query: [q: "Runtime Locale"])
+                            def r = rest.get(query: [q: 'Runtime Locale'])
                             assert 200 == r.statusCode
                             assert 0 < r.json.size()
                         }
                     }
                 }
                 (0..n).collect { test.callAsync(it) } .each { it.get() }
+            }
+        }
+    }
+
+    @Test
+    void testRediskaJThroughput() {
+        def n = 16
+        def nOfThreads = 2+1
+        def data = sampleData()
+        data = data.collate(data.size() / n as int)
+        def u = new URL(baseUri)
+        def rj = new Client(u.host, u.port, 100, 5000)
+        def deq = new java.util.concurrent.LinkedBlockingDeque<java.util.concurrent.Future<Client.Result>>()
+        RATest.perf('Rediska-J put web test finished in') {
+            withPool(nOfThreads) {
+                def enqueue = { dataChunk, i ->
+                    RATest.perf("Rediska-J async put task $i finished in") {
+                        dataChunk.each { content ->
+                            deq.add(rj.put(*content))
+                        }
+                    }
+                }
+                def dequeue = {
+                    RATest.perf('Rediska-J future.get() task finished in') {
+                        def (errors, total, apiTime) = [0, 0, 0l]
+                        while (true) {
+                            def f = deq.pollFirst(3, java.util.concurrent.TimeUnit.SECONDS)
+                            if (f == null)
+                                break
+                            def r = f.get()
+                            if (!r.success)
+                                ++errors
+                            if (r.elapsedNanos > 0)
+                                apiTime += r.elapsedNanos/1000 as long
+                            ++total
+                        }
+                        println "async futures processed: $total total; $errors errors; api elapsed time ${Math.round(apiTime/1000000)}s"
+                    }
+                }
+                ([dequeue.callAsync()] + (0..n).collect { enqueue.callAsync(data[it], it) }).each { it.get() }
             }
         }
     }
@@ -139,14 +177,14 @@ class WebTest extends GroovyTestCase {
         def l = 5000
         def data = []
         htmls.each { file ->
-            def id = file.canonicalPath
+            def id = file.canonicalPath //.hashCode()
             def str = new String(file.readBytes(), "UTF-8")
             if (str.length() > l) {
                 l.step(str.length(), l) { i ->
                     data << ["$id-$i", str.substring(i-l, i) ]
                 }
             } else
-                data << [id, str]
+                data << [id.toString(), str]
         }
 
         assert data.size() > 1000

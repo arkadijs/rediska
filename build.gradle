@@ -22,4 +22,5 @@ dependencies {
     compile "org.eclipse.jetty:jetty-servlet:8.1.4.v20120524"
     testCompile 'junit:junit:4.8.2'
     testCompile 'com.github.groovy-wslite:groovy-wslite:0.7.1'
+    testCompile 'arkadi:rediska-j:1.0'
 }

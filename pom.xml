@@ -194,5 +194,11 @@
             <version>0.7.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>arkadi</groupId>
+            <artifactId>rediska-j</artifactId>
+            <version>1.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
