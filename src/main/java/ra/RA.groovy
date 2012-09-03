@@ -109,7 +109,7 @@ class RA {
             }
         }
         if (!success)
-            throw new RuntimeException("All Redis instances failed, last exception attached", ex)
+            throw new RuntimeException("All Redis instances failed, last exception attached: " + ex.message, ex)
     }
 
     def disconnect() {
@@ -129,7 +129,7 @@ class RA {
 
     /** Resets redis storage. */
     def reset() {
-        allRedisesOneByOne { it.flushAll() }
+        allRedises { it.flushAll() }
     }
 
     def splitter = ~/[\s,\.\?!"':=\<\>\(\)\[\]\/\\]+/
