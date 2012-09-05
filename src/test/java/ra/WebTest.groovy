@@ -3,6 +3,8 @@ package ra
 import static groovyx.gpars.GParsPool.withPool
 import wslite.rest.RESTClient
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 @org.junit.runner.RunWith(org.junit.runners.JUnit4.class)
 class WebTest extends GroovyTestCase {
@@ -151,8 +153,10 @@ class WebTest extends GroovyTestCase {
                             if (f == null)
                                 break
                             def r = f.get()
-                            if (!r.success)
+                            if (!r.success) {
                                 ++errors
+                                println "error: ${r.code}"
+                            }
                             if (r.elapsedNanos > 0)
                                 apiTime += r.elapsedNanos/1000 as long
                             ++total
@@ -162,6 +166,70 @@ class WebTest extends GroovyTestCase {
                 }
                 ([dequeue.callAsync()] + (0..n).collect { enqueue.callAsync(data[it], it) }).each { it.get() }
             }
+        }
+    }
+
+    @Test
+    void testRediskaJPut2Throughput() {
+        def n = 16
+        def nOfThreads = 2
+        def data = sampleData()
+        def nMessages = data.size()
+        data = data.collate(data.size() / n as int)
+        def u = new URL(baseUri)
+        def rj = new Client(u.host, u.port, 10, 5000)
+        def total = new AtomicInteger(0)
+        def errors = new AtomicInteger(0)
+        def apiTime = new AtomicLong(0)
+        def invoker = Thread.currentThread()
+        def listener = new com.biasedbit.http.future.HttpRequestFutureListener<Client.Result>() {
+            @Override
+            void operationComplete(com.biasedbit.http.future.HttpRequestFuture<Client.Result> future) {
+                if (201 == future.responseStatusCode) {
+                    def r = future.processedResult
+                    assert null != r
+                    if (!r.success) {
+                        errors.getAndIncrement()
+                        println "error: ${future.responseStatusCode} ${future.response.status.reasonPhrase}"
+                    }
+                    if (r.elapsedNanos > 0)
+                        apiTime.getAndAdd(r.elapsedNanos/1000 as long)
+                } else {
+                    errors.getAndIncrement()
+                    println "error: ${future.responseStatusCode} ${future.response.status.reasonPhrase}"
+                }
+                def totalProcessed = total.getAndIncrement()
+                if (totalProcessed == nMessages - 100)
+                    invoker.interrupt()
+            }
+        };
+        RATest.perf('Rediska-J put2 web test finished in') {
+            withPool(nOfThreads) {
+                def enqueue = { dataChunk, i ->
+                    RATest.perf("Rediska-J async put2 task $i finished in") {
+                        dataChunk.each { content ->
+                            while (true) {
+                                try {
+                                    rj.put2(*content, listener)
+                                    break
+                                } catch (com.biasedbit.http.CannotExecuteRequestException ex) {
+                                    if (ex.message == 'Request queue is full') {
+                                        println 'http request queue full, sleeping'
+                                        Thread.sleep(1000)
+                                    } else
+                                        throw ex
+                                }
+                            }
+                        }
+                    }
+                }
+                (0..n).collect { enqueue.callAsync(data[it], it) } .each { it.get() }
+            }
+            def interrupted = false
+            try { Thread.sleep(200_000) } catch (InterruptedException ex) { interrupted = true }
+            Thread.sleep(1000)
+            println "async callbacks processed: ${total.get()} total; ${errors.get()} errors; api elapsed time ${Math.round(apiTime.get()/1000000)}s"
+            assert true == interrupted
         }
     }
 
