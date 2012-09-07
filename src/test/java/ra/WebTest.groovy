@@ -136,35 +136,53 @@ class WebTest extends GroovyTestCase {
         def u = new URL(baseUri)
         def rj = new Client(u.host, u.port, 100, 5000)
         def deq = new java.util.concurrent.LinkedBlockingDeque<java.util.concurrent.Future<Client.Result>>()
+        def enqueuePut = { dataChunk, i ->
+            RATest.perf("Rediska-J async put task $i finished in") {
+                dataChunk.each { content ->
+                    deq.add(rj.put(*content))
+                }
+            }
+        }
+        def s = 100
+        def enqueueGet = { i ->
+            RATest.perf("Rediska-J async search task $i finished in") {
+                s.times {
+                    deq.add(rj.search('Runtime Locale'))
+                }
+            }
+        }
+        def search = false
+        def dequeue = {
+            RATest.perf('Rediska-J future.get() task finished in') {
+                def (errors, total, apiTime) = [0, 0, 0l]
+                while (true) {
+                    def f = deq.pollFirst(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    if (f == null)
+                        break
+                    def r = f.get()
+                    if (!r.success) {
+                        ++errors
+                        println "error: ${r.code}"
+                    } else if (search && r.ids.empty) {
+                        ++errors
+                        println 'no search results returned'
+                    }
+                    if (r.elapsedNanos > 0)
+                        apiTime += r.elapsedNanos/1000 as long
+                    ++total
+                }
+                println "async futures processed: $total total; $errors errors; api elapsed time ${Math.round(apiTime/1000000)}s"
+            }
+        }
         RATest.perf('Rediska-J put web test finished in') {
             withPool(nOfThreads) {
-                def enqueue = { dataChunk, i ->
-                    RATest.perf("Rediska-J async put task $i finished in") {
-                        dataChunk.each { content ->
-                            deq.add(rj.put(*content))
-                        }
-                    }
-                }
-                def dequeue = {
-                    RATest.perf('Rediska-J future.get() task finished in') {
-                        def (errors, total, apiTime) = [0, 0, 0l]
-                        while (true) {
-                            def f = deq.pollFirst(3, java.util.concurrent.TimeUnit.SECONDS)
-                            if (f == null)
-                                break
-                            def r = f.get()
-                            if (!r.success) {
-                                ++errors
-                                println "error: ${r.code}"
-                            }
-                            if (r.elapsedNanos > 0)
-                                apiTime += r.elapsedNanos/1000 as long
-                            ++total
-                        }
-                        println "async futures processed: $total total; $errors errors; api elapsed time ${Math.round(apiTime/1000000)}s"
-                    }
-                }
-                ([dequeue.callAsync()] + (0..n).collect { enqueue.callAsync(data[it], it) }).each { it.get() }
+                ([dequeue.callAsync()] + (0..n).collect { enqueuePut.callAsync(data[it], it) }).each { it.get() }
+            }
+        }
+        search = true
+        RATest.perf('Rediska-J search web test finished in') {
+            withPool(nOfThreads) {
+                ([dequeue.callAsync()] + (0..<n).collect { enqueueGet.callAsync(it) }).each { it.get() }
             }
         }
     }
@@ -190,13 +208,13 @@ class WebTest extends GroovyTestCase {
                     assert null != r
                     if (!r.success) {
                         errors.getAndIncrement()
-                        println "error: ${future.responseStatusCode} ${future.response.status.reasonPhrase}"
+                        println "error: ${future.responseStatusCode} ${future.response?.status?.reasonPhrase}"
                     }
                     if (r.elapsedNanos > 0)
                         apiTime.getAndAdd(r.elapsedNanos/1000 as long)
                 } else {
                     errors.getAndIncrement()
-                    println "error: ${future.responseStatusCode} ${future.response.status.reasonPhrase}"
+                    println "error: ${future.responseStatusCode} ${future.response?.status?.reasonPhrase}"
                 }
                 def totalProcessed = total.getAndIncrement()
                 if (totalProcessed == nMessages - 100)
@@ -214,7 +232,7 @@ class WebTest extends GroovyTestCase {
                                     break
                                 } catch (com.biasedbit.http.CannotExecuteRequestException ex) {
                                     if (ex.message == 'Request queue is full') {
-                                        println 'http request queue full, sleeping'
+                                      //println 'http request queue full, sleeping'
                                         Thread.sleep(1000)
                                     } else
                                         throw ex
@@ -245,7 +263,7 @@ class WebTest extends GroovyTestCase {
         def l = 5000
         def data = []
         htmls.each { file ->
-            def id = file.canonicalPath //.hashCode()
+            def id = file.canonicalPath.replaceAll('/', '_') //.hashCode()
             def str = new String(file.readBytes(), "UTF-8")
             if (str.length() > l) {
                 l.step(str.length(), l) { i ->
